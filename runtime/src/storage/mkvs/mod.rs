@@ -118,7 +118,7 @@ impl From<Vec<u8>> for Prefix {
 }
 
 /// Merklized key-value store.
-pub trait MKVS {
+pub trait MKVS: Send {
     /// Fetch entry with given key.
     fn get(&self, ctx: Context, key: &[u8]) -> Option<Vec<u8>>;
 
@@ -159,7 +159,7 @@ pub trait MKVS {
 }
 
 /// Merklized key-value store where methods return errors instead of panicking.
-pub trait FallibleMKVS {
+pub trait FallibleMKVS: Send {
     /// Fetch entry with given key.
     fn get(&self, ctx: Context, key: &[u8]) -> Result<Option<Vec<u8>>>;
 
