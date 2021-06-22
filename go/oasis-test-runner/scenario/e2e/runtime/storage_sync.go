@@ -25,7 +25,7 @@ type storageSyncImpl struct {
 
 func newStorageSyncImpl() scenario.Scenario {
 	return &storageSyncImpl{
-		runtimeImpl: *newRuntimeImpl("storage-sync", "simple-keyvalue-client", nil),
+		runtimeImpl: *newRuntimeImpl("storage-sync", BasicKVTestClient),
 	}
 }
 
@@ -74,8 +74,8 @@ func (sc *storageSyncImpl) Fixture() (*oasis.NetworkFixture, error) {
 }
 
 func (sc *storageSyncImpl) Run(childEnv *env.Env) error {
-	clientErrCh, cmd, err := sc.runtimeImpl.start(childEnv)
-	if err != nil {
+	ctx := context.Background()
+	if err := sc.startNetworkAndTestClient(ctx, childEnv); err != nil {
 		return err
 	}
 
@@ -89,7 +89,7 @@ func (sc *storageSyncImpl) Run(childEnv *env.Env) error {
 	}
 
 	// Wait for the client to exit.
-	if err = sc.waitClient(childEnv, cmd, clientErrCh); err != nil {
+	if err = sc.waitTestClientOnly(); err != nil {
 		return err
 	}
 
@@ -110,12 +110,11 @@ func (sc *storageSyncImpl) Run(childEnv *env.Env) error {
 	// Generate some more rounds to trigger checkpointing. Up to this point there have been ~9
 	// rounds, we create 15 more rounds to bring this up to ~24. Checkpoints are every 10 rounds so
 	// this leaves some space for any unintended epoch transitions.
-	ctx := context.Background()
 	for i := 0; i < 15; i++ {
 		sc.Logger.Info("submitting transaction to runtime",
 			"seq", i,
 		)
-		if err = sc.submitKeyValueRuntimeInsertTx(ctx, runtimeID, "checkpoint", fmt.Sprintf("my cp %d", i)); err != nil {
+		if err = sc.submitKeyValueRuntimeInsertTx(ctx, runtimeID, "checkpoint", fmt.Sprintf("my cp %d", i), 0); err != nil {
 			return err
 		}
 	}
@@ -191,7 +190,7 @@ func (sc *storageSyncImpl) Run(childEnv *env.Env) error {
 		sc.Logger.Info("submitting large transaction to runtime",
 			"seq", i,
 		)
-		if err = sc.submitKeyValueRuntimeInsertTx(ctx, runtimeID, fmt.Sprintf("%d key %d", i, i), fmt.Sprintf("my cp %d: ", i)+largeVal); err != nil {
+		if err = sc.submitKeyValueRuntimeInsertTx(ctx, runtimeID, fmt.Sprintf("%d key %d", i, i), fmt.Sprintf("my cp %d: ", i)+largeVal, 0); err != nil {
 			return err
 		}
 	}
