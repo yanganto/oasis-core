@@ -114,7 +114,7 @@ func (sc *storageSyncImpl) Run(childEnv *env.Env) error {
 		sc.Logger.Info("submitting transaction to runtime",
 			"seq", i,
 		)
-		if err = sc.submitKeyValueRuntimeInsertTx(ctx, runtimeID, "checkpoint", fmt.Sprintf("my cp %d", i), 0); err != nil {
+		if _, err = sc.submitKeyValueRuntimeInsertTx(ctx, runtimeID, "checkpoint", fmt.Sprintf("my cp %d", i), 0); err != nil {
 			return err
 		}
 	}
@@ -190,7 +190,7 @@ func (sc *storageSyncImpl) Run(childEnv *env.Env) error {
 		sc.Logger.Info("submitting large transaction to runtime",
 			"seq", i,
 		)
-		if err = sc.submitKeyValueRuntimeInsertTx(ctx, runtimeID, fmt.Sprintf("%d key %d", i, i), fmt.Sprintf("my cp %d: ", i)+largeVal, 0); err != nil {
+		if _, err = sc.submitKeyValueRuntimeInsertTx(ctx, runtimeID, fmt.Sprintf("%d key %d", i, i), fmt.Sprintf("my cp %d: ", i)+largeVal, 0); err != nil {
 			return err
 		}
 	}
