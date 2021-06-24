@@ -93,6 +93,8 @@ func (sc *storageSyncImpl) Run(childEnv *env.Env) error {
 		return err
 	}
 
+	drbg, _ := drbgFromSeed([]byte("storage-sync/seq"), []byte("plant_your_seeds"))
+
 	// Check if the storage node that ignored applies has synced.
 	sc.Logger.Info("checking if roots have been synced")
 
@@ -114,7 +116,7 @@ func (sc *storageSyncImpl) Run(childEnv *env.Env) error {
 		sc.Logger.Info("submitting transaction to runtime",
 			"seq", i,
 		)
-		if _, err = sc.submitKeyValueRuntimeInsertTx(ctx, runtimeID, "checkpoint", fmt.Sprintf("my cp %d", i), 0); err != nil {
+		if _, err = sc.submitKeyValueRuntimeInsertTx(ctx, runtimeID, "checkpoint", fmt.Sprintf("my cp %d", i), drbg.Uint64()); err != nil {
 			return err
 		}
 	}
@@ -125,9 +127,26 @@ func (sc *storageSyncImpl) Run(childEnv *env.Env) error {
 		return fmt.Errorf("failed to connect with the first storage node: %w", err)
 	}
 
-	cps, err := ctrl.Storage.GetCheckpoints(ctx, &checkpoint.GetCheckpointsRequest{Version: 1, Namespace: runtimeID})
-	if err != nil {
-		return fmt.Errorf("failed to get checkpoints: %w", err)
+	var cps []*checkpoint.Metadata
+	for i := 0; i < 10; i++ {
+		cps, err = ctrl.Storage.GetCheckpoints(ctx, &checkpoint.GetCheckpointsRequest{Version: 1, Namespace: runtimeID})
+		if err != nil {
+			return fmt.Errorf("failed to get checkpoints: %w", err)
+		}
+
+		// There should be at least two checkpoints. There may be more
+		// depending on the state of garbage collection process (which
+		// may be one checkpoint behind.)
+		if len(cps) >= 2 {
+			break
+		}
+
+		// If at first you fail, try, try and try again.
+		sc.Logger.Info("incorrect number of checkpoints",
+			"num_cps", len(cps),
+			"attempt", i,
+		)
+		time.Sleep(1 * time.Second)
 	}
 
 	blk, err := ctrl.RuntimeClient.GetBlock(ctx, &runtimeClient.GetBlockRequest{
@@ -144,12 +163,6 @@ func (sc *storageSyncImpl) Run(childEnv *env.Env) error {
 	sc.Logger.Info("determined last expected checkpoint round",
 		"round", lastCheckpoint,
 	)
-
-	// There should be at least two checkpoints. There may be more depending on the state of garbage
-	// collection process (which may be one checkpoint behind.)
-	if len(cps) < 2 {
-		return fmt.Errorf("incorrect number of checkpoints (expected: >=2 got: %d)", len(cps))
-	}
 
 	var validCps int
 	for checkpoint := rt.Storage.CheckpointInterval; checkpoint <= lastCheckpoint; checkpoint += rt.Storage.CheckpointInterval {
@@ -190,7 +203,7 @@ func (sc *storageSyncImpl) Run(childEnv *env.Env) error {
 		sc.Logger.Info("submitting large transaction to runtime",
 			"seq", i,
 		)
-		if _, err = sc.submitKeyValueRuntimeInsertTx(ctx, runtimeID, fmt.Sprintf("%d key %d", i, i), fmt.Sprintf("my cp %d: ", i)+largeVal, 0); err != nil {
+		if _, err = sc.submitKeyValueRuntimeInsertTx(ctx, runtimeID, fmt.Sprintf("%d key %d", i, i), fmt.Sprintf("my cp %d: ", i)+largeVal, drbg.Uint64()); err != nil {
 			return err
 		}
 	}
